@@ -6,9 +6,11 @@ import org.springframework.security.core.Authentication;
 import javax.servlet.http.HttpServletRequest;
 
 public interface JwtProvider {
-    String generateToken(UserPrincipal authInfo);
+
+    String generateToken(UserPrincipal auth);
+
+    Authentication getAuthentication(HttpServletRequest request);
 
     boolean isTokenValid(HttpServletRequest request);
 
-    Authentication getAuthentication(HttpServletRequest request);
 }

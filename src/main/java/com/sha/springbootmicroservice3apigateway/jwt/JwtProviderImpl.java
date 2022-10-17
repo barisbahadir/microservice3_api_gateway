@@ -24,57 +24,44 @@ import java.util.stream.Collectors;
 @Component
 public class JwtProviderImpl implements JwtProvider {
 
-    @Value("${app.jwt.secret}")
-    private String JWT_SECRET;
+//    @Value("${app.jwt.secret}")
+    private String JWT_SECRET = "B24A365B2A0B2AD3EB2734B91971CB86047781BE3B1AFEDEF68A467474FA3281";
 
     @Value("${app.jwt.expiration-in-ms}")
     private Long JWT_EXPIRATION_IN_MS;
 
-    private final String userIdKey = "userId";
-    private final String rolesKey = "roles";
-
     @Override
-    public String generateToken(UserPrincipal authInfo) {
-        String authorities = authInfo.getAuthorities()
-                .stream()
-                .map(GrantedAuthority::getAuthority).
-                collect(Collectors.joining(","));
+    public String generateToken(UserPrincipal auth)
+    {
+        String authorities = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.joining(","));
 
-        Key key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8));
+        Key key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes());
+
         return Jwts.builder()
-                .setSubject(authInfo.getUsername())
-                .claim(rolesKey, authorities)
-                .claim(userIdKey, authInfo.getId())
+                .setSubject(auth.getUsername())
+                .claim("roles", authorities)
+                .claim("userId", auth.getId())
                 .setExpiration(new Date(System.currentTimeMillis() + JWT_EXPIRATION_IN_MS))
-                .signWith(key, SignatureAlgorithm.HS512)
+                .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
     @Override
-    public boolean isTokenValid(HttpServletRequest request) {
+    public Authentication getAuthentication(HttpServletRequest request)
+    {
         Claims claims = extractClaims(request);
 
         if (claims == null)
-            return false;
-
-        if (claims.getExpiration().before(new Date()))
-            return false;
-
-        return true;
-    }
-
-    @Override
-    public Authentication getAuthentication(HttpServletRequest request) {
-        Claims claims = extractClaims(request);
-
-        if (claims == null) {
+        {
             return null;
         }
 
         String username = claims.getSubject();
-        Long userId = claims.get(userIdKey, Long.class);
+        Long userId = claims.get("userId", Long.class);
 
-        Set<GrantedAuthority> authorities = Arrays.stream(claims.get(rolesKey).toString().split(","))
+        Set<GrantedAuthority> authorities = Arrays.stream(claims.get("roles").toString().split(","))
                 .map(SecurityUtils::convertToAuthority)
                 .collect(Collectors.toSet());
 
@@ -84,21 +71,40 @@ public class JwtProviderImpl implements JwtProvider {
                 .id(userId)
                 .build();
 
-        if (username == null) {
+        if (username == null)
+        {
             return null;
         }
-
         return new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
     }
 
-    private Claims extractClaims(HttpServletRequest request) {
+    @Override
+    public boolean isTokenValid(HttpServletRequest request)
+    {
+        Claims claims = extractClaims(request);
+
+        if (claims == null)
+        {
+            return false;
+        }
+
+        if (claims.getExpiration().before(new Date()))
+        {
+            return false;
+        }
+        return true;
+    }
+
+    private Claims extractClaims(HttpServletRequest request)
+    {
         String token = SecurityUtils.extractAuthTokenFromRequest(request);
 
-        if (token == null) {
+        if (token == null)
+        {
             return null;
         }
 
-        Key key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8));
+        Key key = Keys.hmacShaKeyFor(JWT_SECRET.getBytes());
 
         return Jwts.parserBuilder()
                 .setSigningKey(key)
